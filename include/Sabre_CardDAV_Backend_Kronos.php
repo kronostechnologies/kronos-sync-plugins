@@ -11,7 +11,7 @@
  * @author Evert Pot (http://www.rooftopsolutions.nl/)
  * @license http://code.google.com/p/sabredav/wiki/License Modified BSD License
  */
-class Sabre_CardDAV_Backend_PDO extends Sabre_CardDAV_Backend_Abstract {
+class Sabre_CardDAV_Backend_Kronos extends Sabre_CardDAV_Backend_Abstract {
 
     /**
      * PDO connection
@@ -56,11 +56,11 @@ class Sabre_CardDAV_Backend_PDO extends Sabre_CardDAV_Backend_Abstract {
 
 		$addressBooks[] = array(
 			'id'  => '1',
-			'uri' => '',
+			'uri' => 'kronos',
 			'principaluri' => $principalUri,
-			'{DAV:}displayname' => $row['displayname'],
+			'{DAV:}displayname' => 'kronos',
 			'{' . Sabre_CardDAV_Plugin::NS_CARDDAV . '}addressbook-description' => 'Kronos list of contacts',
-			'{http://calendarserver.org/ns/}getctag' => '',
+			'{http://calendarserver.org/ns/}getctag' => '1',
 			'{' . Sabre_CardDAV_Plugin::NS_CARDDAV . '}supported-address-data' =>
 				new Sabre_CardDAV_Property_SupportedAddressData(),
 		);
@@ -83,43 +83,7 @@ class Sabre_CardDAV_Backend_PDO extends Sabre_CardDAV_Backend_Abstract {
      */
     public function updateAddressBook($addressBookId, array $mutations) {
 
-        $updates = array();
-
-        foreach($mutations as $property=>$newValue) {
-
-            switch($property) {
-                case '{DAV:}displayname' :
-                    $updates['displayname'] = $newValue;
-                    break;
-                case '{' . Sabre_CardDAV_Plugin::NS_CARDDAV . '}addressbook-description' :
-                    $updates['description'] = $newValue;
-                    break;
-                default :
-                    // If any unsupported values were being updated, we must
-                    // let the entire request fail.
-                    return false;
-            }
-
-        }
-
-        // No values are being updated?
-        if (!$updates) {
-            return false;
-        }
-
-        $query = 'UPDATE ' . $this->addressBooksTableName . ' SET ctag = ctag + 1 ';
-        foreach($updates as $key=>$value) {
-            $query.=', `' . $key . '` = :' . $key . ' ';
-        }
-        $query.=' WHERE id = :addressbookid';
-
-        $stmt = $this->pdo->prepare($query);
-        $updates['addressbookid'] = $addressBookId;
-
-        $stmt->execute($updates);
-
         return true;
-
     }
 
     /**
@@ -131,32 +95,6 @@ class Sabre_CardDAV_Backend_PDO extends Sabre_CardDAV_Backend_Abstract {
      * @return void
      */
     public function createAddressBook($principalUri, $url, array $properties) {
-
-        $values = array(
-            'displayname' => null,
-            'description' => null,
-            'principaluri' => $principalUri,
-            'uri' => $url,
-        );
-
-        foreach($properties as $property=>$newValue) {
-
-            switch($property) {
-                case '{DAV:}displayname' :
-                    $values['displayname'] = $newValue;
-                    break;
-                case '{' . Sabre_CardDAV_Plugin::NS_CARDDAV . '}addressbook-description' :
-                    $values['description'] = $newValue;
-                    break;
-                default :
-                    throw new Sabre_DAV_Exception_BadRequest('Unknown property: ' . $property);
-            }
-
-        }
-
-        $query = 'INSERT INTO ' . $this->addressBooksTableName . ' (uri, displayname, description, principaluri, ctag) VALUES (:uri, :displayname, :description, :principaluri, 1)';
-        $stmt = $this->pdo->prepare($query);
-        $stmt->execute($values);
 
     }
 
@@ -191,12 +129,30 @@ class Sabre_CardDAV_Backend_PDO extends Sabre_CardDAV_Backend_Abstract {
      */
     public function getCards($addressbookId) {
 
-        $stmt = $this->pdo->prepare('SELECT id, carddata, uri, lastmodified FROM ' . $this->cardsTableName . ' WHERE addressbookid = ?');
-        $stmt->execute(array($addressbookId));
+        //$stmt = $this->pdo->prepare('SELECT id, carddata, uri, lastmodified FROM ' . $this->cardsTableName . ' WHERE addressbookid = ?');
+        //$stmt->execute(array($addressbookId));
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-
+        //return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$data = array(array('carddata' => 'BEGIN:VCARD
+VERSION:3.0
+N:Gump;Forrest
+FN:Forrest Gump
+ORG:Bubba Gump Shrimp Co.
+TITLE:Shrimp Man
+PHOTO;VALUE=URL;TYPE=GIF:http://www.example.com/dir_photos/my_photo.gif
+TEL;TYPE=WORK,VOICE:(111) 555-1212
+TEL;TYPE=HOME,VOICE:(404) 555-1212
+ADR;TYPE=WORK:;;100 Waters Edge;Baytown;LA;30314;United States of America
+LABEL;TYPE=WORK:100 Waters Edge\nBaytown, LA 30314\nUnited States of America
+ADR;TYPE=HOME:;;42 Plantation St.;Baytown;LA;30314;United States of America
+LABEL;TYPE=HOME:42 Plantation St.\nBaytown, LA 30314\nUnited States of America
+EMAIL;TYPE=PREF,INTERNET:forrestgump@example.com
+REV:2008-04-24T19:52:43Z
+END:VCARD',
+				'uri' => '1',
+				'lastmodified' => time()));
+		
+		return $data;
     }
 
     /**
@@ -211,12 +167,33 @@ class Sabre_CardDAV_Backend_PDO extends Sabre_CardDAV_Backend_Abstract {
      */
     public function getCard($addressBookId, $cardUri) {
 
-        $stmt = $this->pdo->prepare('SELECT id, carddata, uri, lastmodified FROM ' . $this->cardsTableName . ' WHERE addressbookid = ? AND uri = ? LIMIT 1');
-        $stmt->execute(array($addressBookId, $cardUri));
-
-        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        return (count($result)>0?$result[0]:false);
+//        $stmt = $this->pdo->prepare('SELECT id, carddata, uri, lastmodified FROM ' . $this->cardsTableName . ' WHERE addressbookid = ? AND uri = ? LIMIT 1');
+//        $stmt->execute(array($addressBookId, $cardUri));
+//
+//        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+//
+//        return (count($result)>0?$result[0]:false);
+		$data = array('carddata' => 'BEGIN:VCARD
+VERSION:3.0
+N:Gump;Forrest
+FN:Forrest Gump
+ORG:Bubba Gump Shrimp Co.
+TITLE:Shrimp Man
+PHOTO;VALUE=URL;TYPE=GIF:http://www.example.com/dir_photos/my_photo.gif
+TEL;TYPE=WORK,VOICE:(111) 555-1212
+TEL;TYPE=HOME,VOICE:(404) 555-1212
+ADR;TYPE=WORK:;;100 Waters Edge;Baytown;LA;30314;United States of America
+LABEL;TYPE=WORK:100 Waters Edge\nBaytown, LA 30314\nUnited States of America
+ADR;TYPE=HOME:;;42 Plantation St.;Baytown;LA;30314;United States of America
+LABEL;TYPE=HOME:42 Plantation St.\nBaytown, LA 30314\nUnited States of America
+EMAIL;TYPE=PREF,INTERNET:forrestgump@example.com
+REV:2008-04-24T19:52:43Z
+END:VCARD',
+				'uri' => '1',
+				'lastmodified' => time());
+		//var_dump(debug_backtrace());
+		//debug_print_backtrace();
+		return $data;
 
     }
 

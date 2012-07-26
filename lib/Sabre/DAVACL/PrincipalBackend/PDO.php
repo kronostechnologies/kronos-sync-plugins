@@ -104,7 +104,7 @@ class Sabre_DAVACL_PrincipalBackend_PDO implements Sabre_DAVACL_IPrincipalBacken
      * @return array
      */
     public function getPrincipalsByPrefix($prefixPath) {
-
+	Debug::log($prefixPath);
         $fields = array(
             'uri',
         );
@@ -133,7 +133,7 @@ class Sabre_DAVACL_PrincipalBackend_PDO implements Sabre_DAVACL_IPrincipalBacken
             $principals[] = $principal;
 
         }
-
+	Debug::log($principals, true);
         return $principals;
 
     }

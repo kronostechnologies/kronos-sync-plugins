@@ -3,6 +3,9 @@
 require_once 'lib/Sabre/autoload.php';
 require_once 'config/config.php';
 require_once 'include/KronosBasicAuthBackend.php';
+require_once 'include/KronosPrincipalBackend.php';
+require_once 'include/Debug.php';
+
 // settings
 date_default_timezone_set('Canada/Eastern');
 
@@ -24,7 +27,7 @@ set_error_handler("exception_error_handler");
 $authBackend = new KronosBasicAuthBackend($pdo);
 $calendarBackend = new Sabre_CalDAV_Backend_PDO($pdo);
 $carddavBackend = new Sabre_CardDAV_Backend_PDO($pdo);
-$principalBackend = new Sabre_DAVACL_PrincipalBackend_PDO($pdo);
+$principalBackend = new KronosPrincipalBackend($pdo);
 
 // Directory structure 
 $nodes = array(

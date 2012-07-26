@@ -579,7 +579,7 @@ class Sabre_DAVACL_Plugin extends Sabre_DAV_ServerPlugin {
 
         $lookupResults = array();
         foreach($uris as $uri) {
-
+		
             $principalCollection = $this->server->tree->getNodeForPath($uri);
             if (!$principalCollection instanceof Sabre_DAVACL_AbstractPrincipalCollection) {
                 // Not a principal collection, we're simply going to ignore

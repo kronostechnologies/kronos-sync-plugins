@@ -1,6 +1,8 @@
 <?php
 // Files we need
 require_once 'lib/Sabre/autoload.php';
+require_once 'config/config.php';
+require_once 'include/KronosBasicAuthBackend.php';
 // settings
 date_default_timezone_set('Canada/Eastern');
 
@@ -9,7 +11,7 @@ date_default_timezone_set('Canada/Eastern');
 // $baseUri = '/';
 
 /* Database */
-$pdo = new PDO('mysql:host=localhost;dbname=testdav', 'root', 'simon');
+$pdo = new PDO('mysql:host='.MYSQL_DBHOST.';dbname='.MYSQL_DBNAME, MYSQL_DBUSER, MYSQL_DBPASSWORD);
 $pdo->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
 
 //Mapping PHP errors to exceptions
@@ -19,7 +21,7 @@ function exception_error_handler($errno, $errstr, $errfile, $errline ) {
 set_error_handler("exception_error_handler");
 
 // Backends
-$authBackend = new Sabre_DAV_Auth_Backend_PDO($pdo);
+$authBackend = new KronosBasicAuthBackend($pdo);
 $calendarBackend = new Sabre_CalDAV_Backend_PDO($pdo);
 $carddavBackend = new Sabre_CardDAV_Backend_PDO($pdo);
 $principalBackend = new Sabre_DAVACL_PrincipalBackend_PDO($pdo);

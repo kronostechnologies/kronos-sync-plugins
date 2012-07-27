@@ -45,10 +45,7 @@ class KronosPrincipalBackend implements Sabre_DAVACL_IPrincipalBackend{
 	);
 
 
-	public function getPrincipalsByPrefix($prefixPath) {
-		Debug::log('KronosPrincipalBackend.php::getPrincipalsByPrefix');
-		Debug::log($prefixPath);
-		
+	public function getPrincipalsByPrefix($prefixPath) {		
 		$result = $this->pdo->query('SELECT email, screen_name FROM kronos_users');
 
 		$principals = array();
@@ -60,14 +57,11 @@ class KronosPrincipalBackend implements Sabre_DAVACL_IPrincipalBackend{
 			
 			$principals[] = $principal;
 		}
-		Debug::log($principals, true);
 		return $principals;
 
 	}
 
 	public function getPrincipalByPath($path) {
-		Debug::log('KronosPrincipalBackend.php::getPrincipalByPath');
-		Debug::log($path);
 		$parts = explode('/', $path);
 		$email = $parts[1];
 
@@ -135,50 +129,27 @@ class KronosPrincipalBackend implements Sabre_DAVACL_IPrincipalBackend{
      * @return array|bool
      */
     public function updatePrincipal($path, $mutations) {
-	    Debug::log('KronosPrincipalBackend.php::updatePrincipal');
-	    Debug::log($mutations);
-	    Debug::log($path);
-//        $updateAble = array();
-//        foreach($mutations as $key=>$value) {
-//
-//            // We are not aware of this field, we must fail.
-//            if (!isset($this->fieldMap[$key])) {
-//
-//                $response = array(
-//                    403 => array(
-//                        $key => null,
-//                    ),
-//                    424 => array(),
-//                );
-//
-//                // Adding the rest to the response as a 424
-//                foreach($mutations as $subKey=>$subValue) {
-//                    if ($subKey !== $key) {
-//                        $response[424][$subKey] = null;
-//                    }
-//                }
-//                return $response;
-//            }
-//
-//            $updateAble[$this->fieldMap[$key]['dbField']] = $value;
-//
-//        }
-//
-//        // No fields to update
-//        $query = "UPDATE " . $this->tableName . " SET ";
-//
-//        $first = true;
-//        foreach($updateAble as $key => $value) {
-//            if (!$first) {
-//                $query.= ', ';
-//            }
-//            $first = false;
-//            $query.= "$key = :$key ";
-//        }
-//        $query.='WHERE uri = :uri';
-//        $stmt = $this->pdo->prepare($query);
-//        $updateAble['uri'] =  $path;
-//        $stmt->execute($updateAble);
+
+	//We don't allow updates of principals
+        foreach($mutations as $key=>$value) {
+
+		$response = array(
+		    403 => array(
+			$key => null,
+		    ),
+		    424 => array(),
+		);
+
+		// Adding the rest to the response as a 424
+		foreach($mutations as $subKey=>$subValue) {
+		    if ($subKey !== $key) {
+			$response[424][$subKey] = null;
+		    }
+		}
+		
+		return $response;
+
+        }
 
         return true;
 
@@ -213,9 +184,6 @@ class KronosPrincipalBackend implements Sabre_DAVACL_IPrincipalBackend{
 	* @return array
 	*/
 	public function searchPrincipals($prefixPath, array $searchProperties) {
-		Debug::log('KronosPrincipalBackend.php::searchPrincipals');
-		Debug::log($searchProperties);
-		Debug::log($prefixPath);
 		$query = 'SELECT email FROM kronos_users WHERE 1=1 ';
 		$values = array();
 		foreach($searchProperties as $property => $value) {
@@ -252,8 +220,6 @@ class KronosPrincipalBackend implements Sabre_DAVACL_IPrincipalBackend{
 	* @return array
 	*/
 	public function getGroupMemberSet($principal) {
-		Debug::log('KronosPrincipalBackend.php::getGroupMemberSet');
-		Debug::log($principal);
 		return array();
 
 	}
@@ -265,8 +231,6 @@ class KronosPrincipalBackend implements Sabre_DAVACL_IPrincipalBackend{
 	* @return array
 	*/
 	public function getGroupMembership($principal) {
-		Debug::log('KronosPrincipalBackend.php::getGroupMembership');
-		Debug::log($principal);
 		return array();
 
 	}
@@ -281,8 +245,5 @@ class KronosPrincipalBackend implements Sabre_DAVACL_IPrincipalBackend{
 	* @return void
 	*/
 	public function setGroupMemberSet($principal, array $members) {
-		Debug::log('KronosPrincipalBackend.php::setGroupMemberSet');
-		Debug::log($principal);
-		Debug::log($members);
 	}
 }

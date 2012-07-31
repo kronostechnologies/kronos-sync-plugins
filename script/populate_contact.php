@@ -1,4 +1,5 @@
 <?php
+require_once('../config/config.php');
 
 $emails = array('test@kronos-web.com', 'test2@kronos-web.com', 'test3@kronos-web.com', 'test4@kronos-web.com');
 $first_names = array('Gertrude', 'Gontrande', 'Zephyrin', 'Luc');
@@ -8,7 +9,7 @@ $postal_codes = array('g6v 3d2', 'g9j 1m0', 'j9d 4m1', 'l0a 1k8');
 $cities = array('Saint-Louis du Ha Ha!', 'Levis', 'Sept-Iles', 'Victoriaville');
 $provinces = array('Quebec', 'QC', 'PQ', 'Québec');
 
-$pdo = new PDO('mysql:host=localhost;dbname=testdav', 'root', 'simon');
+$pdo = new PDO('mysql:host='.MYSQL_DBHOST.';dbname='.MYSQL_DBNAME, MYSQL_DBUSER, MYSQL_DBPASSWORD);
 
 for($i = 0; $i < 100; $i++) {
 	$values = array($emails[rand(0, 3)], $first_names[rand(0, 3)], $last_names[rand(0, 3)], $adresses[rand(0, 3)], 

@@ -27,7 +27,7 @@ set_error_handler("exception_error_handler");
 
 // Backends
 $authBackend = new KronosBasicAuthBackend($pdo);
-$calendarBackend = new Sabre_CalDAV_Backend_PDO($pdo);
+$calendarBackend = new KronosCalendarBackend($pdo);
 $principalBackend = new KronosPrincipalBackend($pdo);
 $carddavBackend = new KronosContactBackend($pdo);
 

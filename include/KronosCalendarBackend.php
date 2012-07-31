@@ -71,207 +71,53 @@ class KronosCalendarBackend extends Sabre_CalDAV_Backend_Abstract {
      */
     public function getCalendarsForUser($principalUri) {
 
-        $fields = array_values($this->propertyMap);
-        $fields[] = 'id';
-        $fields[] = 'uri';
-        $fields[] = 'ctag';
-        $fields[] = 'components';
-        $fields[] = 'principaluri';
+	$parts = explode('/', $principalUri);
+	$email = $parts[count($parts) - 1];
+	$sql = 'SELECT MAX(modified) AS max_modified, MAX(created) as max_created
+	        FROM kronos_agenda a 
+	        INNER JOIN kronos_users u ON a.fk_kronos_users = a.id
+	        WHERE u.email = ?';
+	$stmt = $this->pdo->prepare($sql);
+	$stmt->execute(array($email));
+	$row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // Making fields a comma-delimited list
-        $fields = implode(', ', $fields);
-	Debug::log("SELECT " . $fields . " FROM ".$this->calendarTableName." WHERE principaluri = ? ORDER BY calendarorder ASC");
-        $stmt = $this->pdo->prepare("SELECT " . $fields . " FROM ".$this->calendarTableName." WHERE principaluri = ? ORDER BY calendarorder ASC");
-        $stmt->execute(array($principalUri));
+	$row['max_modified'] = strtotime($row['max_modified']);
+	$row['max_created'] = strtotime($row['max_created']);
+	
+	$ctag = ( $row['max_created'] > $row['max_modified'] ? $row['max_created'] : $row['max_modified'] );
 
-        $calendars = array();
-        while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+	
+	$calendar = array(
+		'id' => $email,
+		'uri' => 'kronos',
+		'principaluri' => $principalUri,
+		'{' . Sabre_CalDAV_Plugin::NS_CALENDARSERVER . '}getctag' => $ctag,
+		'{' . Sabre_CalDAV_Plugin::NS_CALDAV . '}supported-calendar-component-set' => new Sabre_CalDAV_Property_SupportedCalendarComponentSet(array('VEVENT')),
+		'{DAV:}displayname' => 'kronos',
+		'{urn:ietf:params:xml:ns:caldav}calendar-description' => 'Kronos Calendar'
+	);
 
-            $components = array();
-            if ($row['components']) {
-                $components = explode(',',$row['components']);
-            }
-
-            $calendar = array(
-                'id' => $row['id'],
-                'uri' => $row['uri'],
-                'principaluri' => $row['principaluri'],
-                '{' . Sabre_CalDAV_Plugin::NS_CALENDARSERVER . '}getctag' => $row['ctag']?$row['ctag']:'0',
-                '{' . Sabre_CalDAV_Plugin::NS_CALDAV . '}supported-calendar-component-set' => new Sabre_CalDAV_Property_SupportedCalendarComponentSet($components),
-            );
-
-
-            foreach($this->propertyMap as $xmlName=>$dbName) {
-                $calendar[$xmlName] = $row[$dbName];
-            }
-
-            $calendars[] = $calendar;
-
-        }
+	$calendars[] = $calendar;
 
         return $calendars;
 
     }
 
-    /**
-     * Creates a new calendar for a principal.
-     *
-     * If the creation was a success, an id must be returned that can be used to reference
-     * this calendar in other methods, such as updateCalendar
-     *
-     * @param string $principalUri
-     * @param string $calendarUri
-     * @param array $properties
-     * @return string
-     */
     public function createCalendar($principalUri, $calendarUri, array $properties) {
 
-        $fieldNames = array(
-            'principaluri',
-            'uri',
-            'ctag',
-        );
-        $values = array(
-            ':principaluri' => $principalUri,
-            ':uri'          => $calendarUri,
-            ':ctag'         => 1,
-        );
-
-        // Default value
-        $sccs = '{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set';
-        $fieldNames[] = 'components';
-        if (!isset($properties[$sccs])) {
-            $values[':components'] = 'VEVENT,VTODO';
-        } else {
-            if (!($properties[$sccs] instanceof Sabre_CalDAV_Property_SupportedCalendarComponentSet)) {
-                throw new Sabre_DAV_Exception('The ' . $sccs . ' property must be of type: Sabre_CalDAV_Property_SupportedCalendarComponentSet');
-            }
-            $values[':components'] = implode(',',$properties[$sccs]->getValue());
-        }
-
-        foreach($this->propertyMap as $xmlName=>$dbName) {
-            if (isset($properties[$xmlName])) {
-
-                $values[':' . $dbName] = $properties[$xmlName];
-                $fieldNames[] = $dbName;
-            }
-        }
-
-        $stmt = $this->pdo->prepare("INSERT INTO ".$this->calendarTableName." (".implode(', ', $fieldNames).") VALUES (".implode(', ',array_keys($values)).")");
-        $stmt->execute($values);
-
-        return $this->pdo->lastInsertId();
+        throw new Sabre_DAV_Exception_Forbidden('Creating calendar is forbidden');
 
     }
 
-    /**
-     * Updates properties for a calendar.
-     *
-     * The mutations array uses the propertyName in clark-notation as key,
-     * and the array value for the property value. In the case a property
-     * should be deleted, the property value will be null.
-     *
-     * This method must be atomic. If one property cannot be changed, the
-     * entire operation must fail.
-     *
-     * If the operation was successful, true can be returned.
-     * If the operation failed, false can be returned.
-     *
-     * Deletion of a non-existent property is always successful.
-     *
-     * Lastly, it is optional to return detailed information about any
-     * failures. In this case an array should be returned with the following
-     * structure:
-     *
-     * array(
-     *   403 => array(
-     *      '{DAV:}displayname' => null,
-     *   ),
-     *   424 => array(
-     *      '{DAV:}owner' => null,
-     *   )
-     * )
-     *
-     * In this example it was forbidden to update {DAV:}displayname.
-     * (403 Forbidden), which in turn also caused {DAV:}owner to fail
-     * (424 Failed Dependency) because the request needs to be atomic.
-     *
-     * @param string $calendarId
-     * @param array $mutations
-     * @return bool|array
-     */
     public function updateCalendar($calendarId, array $mutations) {
 
-        $newValues = array();
-        $result = array(
-            200 => array(), // Ok
-            403 => array(), // Forbidden
-            424 => array(), // Failed Dependency
-        );
-
-        $hasError = false;
-
-        foreach($mutations as $propertyName=>$propertyValue) {
-
-            // We don't know about this property.
-            if (!isset($this->propertyMap[$propertyName])) {
-                $hasError = true;
-                $result[403][$propertyName] = null;
-                unset($mutations[$propertyName]);
-                continue;
-            }
-
-            $fieldName = $this->propertyMap[$propertyName];
-            $newValues[$fieldName] = $propertyValue;
-
-        }
-
-        // If there were any errors we need to fail the request
-        if ($hasError) {
-            // Properties has the remaining properties
-            foreach($mutations as $propertyName=>$propertyValue) {
-                $result[424][$propertyName] = null;
-            }
-
-            // Removing unused statuscodes for cleanliness
-            foreach($result as $status=>$properties) {
-                if (is_array($properties) && count($properties)===0) unset($result[$status]);
-            }
-
-            return $result;
-
-        }
-
-        // Success
-
-        // Now we're generating the sql query.
-        $valuesSql = array();
-        foreach($newValues as $fieldName=>$value) {
-            $valuesSql[] = $fieldName . ' = ?';
-        }
-        $valuesSql[] = 'ctag = ctag + 1';
-
-        $stmt = $this->pdo->prepare("UPDATE " . $this->calendarTableName . " SET " . implode(', ',$valuesSql) . " WHERE id = ?");
-        $newValues['id'] = $calendarId;
-        $stmt->execute(array_values($newValues));
-
-        return true;
+        throw new Sabre_DAV_Exception_Forbidden('Updating calendar is forbidden');
 
     }
 
-    /**
-     * Delete a calendar and all it's objects
-     *
-     * @param string $calendarId
-     * @return void
-     */
     public function deleteCalendar($calendarId) {
 
-        $stmt = $this->pdo->prepare('DELETE FROM '.$this->calendarObjectTableName.' WHERE calendarid = ?');
-        $stmt->execute(array($calendarId));
-
-        $stmt = $this->pdo->prepare('DELETE FROM '.$this->calendarTableName.' WHERE id = ?');
-        $stmt->execute(array($calendarId));
+        throw new Sabre_DAV_Exception_Forbidden('Deleting calendar is forbidden');
 
     }
 
@@ -304,10 +150,62 @@ class KronosCalendarBackend extends Sabre_CalDAV_Backend_Abstract {
      */
     public function getCalendarObjects($calendarId) {
 
-        $stmt = $this->pdo->prepare('SELECT * FROM '.$this->calendarObjectTableName.' WHERE calendarid = ?');
-        $stmt->execute(array($calendarId));
-        return $stmt->fetchAll();
-
+	    
+	$sql = 'SELECT a.*
+	        FROM kronos_agenda a 
+	        INNER JOIN kronos_users u ON a.fk_kronos_users = u.id
+	        WHERE u.email = ?';
+	$stmt = $this->pdo->prepare($sql);
+	$stmt->execute(array($calendarId));
+	$ret = array();
+	while($row = $stmt->fetch(PDO::FETCH_ASSOC)){
+		$uri = $row['uri'];
+		if(empty($uri)) $uri = $row['id'].'-'.strtotime($row['created']).'-'.$calendarId.'.ics';
+		$created = strtotime($row['created']);
+		$modified = strtotime($row['modified']);
+		
+		$obj['id'] = $row['id'];
+		$obj['uri'] = $uri;
+		$obj['lastmodified'] = ($modified ? $modified : $created);
+		$obj['etag'] = '"'.$obj['lastmodified'].'"';
+		$obj['calendarid'] = $calendarId;
+		$obj['calendardata'] = 'BEGIN:VCALENDAR
+CALSCALE:GREGORIAN
+VERSION:1.0
+BEGIN:VTIMEZONE
+TZID:/freeassociation.sourceforge.net/Tzfile/America/Montreal
+X-LIC-LOCATION:America/Montreal
+BEGIN:STANDARD
+TZNAME:EST
+DTSTART:19701104T020000
+RRULE:FREQ=YEARLY;BYDAY=1SU;BYMONTH=11
+TZOFFSETFROM:-0400
+TZOFFSETTO:-0500
+END:STANDARD
+BEGIN:DAYLIGHT
+TZNAME:EDT
+DTSTART:19700311T020000
+RRULE:FREQ=YEARLY;BYDAY=2SU;BYMONTH=3
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0400
+END:DAYLIGHT
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:'.$row['uri'].'
+CREATED:'.$this->CompactDateTime($row['created']).'
+DTSTAMP:'.$this->CompactDateTime($row['created']).'
+CATEGORIES:'.$row['type'].'
+SUMMARY:'.$row['subject'].'
+DESCRIPTION:'.$row['notes'].'
+DTSTART;TZID=/freeassociation.sourceforge.net/Tzfile/America/Montreal:'.$this->CompactDateTime($row['time_start']).'
+DTEND;TZID=/freeassociation.sourceforge.net/Tzfile/America/Montreal:'.$this->CompactDateTime($row['time_end']).'
+CLASS:'.( $row['private'] == 'Y' ? 'PRIVATE' : 'PUBLIC' ).'
+END:VEVENT
+END:VCALENDAR
+';
+		$ret[] = $obj;
+	}
+	return $ret;
     }
 
     /**
@@ -322,12 +220,60 @@ class KronosCalendarBackend extends Sabre_CalDAV_Backend_Abstract {
      * @param string $objectUri
      * @return array
      */
-    public function getCalendarObject($calendarId,$objectUri) {
-
-        $stmt = $this->pdo->prepare('SELECT * FROM '.$this->calendarObjectTableName.' WHERE calendarid = ? AND uri = ?');
-        $stmt->execute(array($calendarId, $objectUri));
-        return $stmt->fetch();
-
+    public function getCalendarObject($calendarId,$objectUri) {	
+	$sql = 'SELECT a.*
+	        FROM kronos_agenda a 
+	        WHERE a.uri = ?';
+	$stmt = $this->pdo->prepare($sql);
+	$stmt->execute(array($objectUri));
+	$row = $stmt->fetch(PDO::FETCH_ASSOC);
+	
+	if(!$row) return array();
+	
+	$created = strtotime($row['created']);
+	$modified = strtotime($row['modified']);
+	
+	$ret['id'] = $row['id'];
+	$ret['uri'] = $objectUri;
+	$ret['lastmodified'] = ($modified ? $modified : $created);
+	$ret['etag'] = '"'.$ret['lastmodified'].'"';
+	$ret['calendarid'] = $calendarId;
+	$ret['calendardata'] = 'BEGIN:VCALENDAR
+CALSCALE:GREGORIAN
+VERSION:2.0
+BEGIN:VTIMEZONE
+TZID:/freeassociation.sourceforge.net/Tzfile/America/Montreal
+X-LIC-LOCATION:America/Montreal
+BEGIN:STANDARD
+TZNAME:EST
+DTSTART:19701104T020000
+RRULE:FREQ=YEARLY;BYDAY=1SU;BYMONTH=11
+TZOFFSETFROM:-0400
+TZOFFSETTO:-0500
+END:STANDARD
+BEGIN:DAYLIGHT
+TZNAME:EDT
+DTSTART:19700311T020000
+RRULE:FREQ=YEARLY;BYDAY=2SU;BYMONTH=3
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0400
+END:DAYLIGHT
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:'.$row['uri'].'
+CATEGORIES:'.$row['type'].'
+SUMMARY:'.$row['subject'].'
+DESCRIPTION:'.$row['notes'].'
+CREATED:'.$this->CompactDateTime($row['created']).'
+DTSTAMP:'.$this->CompactDateTime($row['created']).'
+DTSTART;TZID=/freeassociation.sourceforge.net/Tzfile/America/Montreal:'.$this->CompactDateTime($row['time_start']).'
+DTEND;TZID=/freeassociation.sourceforge.net/Tzfile/America/Montreal:'.$this->CompactDateTime($row['time_end']).'
+CLASS:'.( $row['private'] == 'Y' ? 'PRIVATE' : 'PUBLIC' ).'
+END:VEVENT
+END:VCALENDAR
+';
+	
+	return $ret;
     }
 
     /**
@@ -339,11 +285,51 @@ class KronosCalendarBackend extends Sabre_CalDAV_Backend_Abstract {
      * @return void
      */
     public function createCalendarObject($calendarId,$objectUri,$calendarData) {
-
-        $stmt = $this->pdo->prepare('INSERT INTO '.$this->calendarObjectTableName.' (calendarid, uri, calendardata, lastmodified) VALUES (?,?,?,?)');
-        $stmt->execute(array($calendarId,$objectUri,$calendarData,time()));
-        $stmt = $this->pdo->prepare('UPDATE '.$this->calendarTableName.' SET ctag = ctag + 1 WHERE id = ?');
-        $stmt->execute(array($calendarId));
+	$sql = 'SELECT id FROM kronos_users WHERE email = ?';
+	$stmt = $this->pdo->prepare($sql);
+	$stmt->execute(array($calendarId));
+	if(!$row = $stmt->fetch(PDO::FETCH_ASSOC)) throw new Sabre_DAV_Exception_Forbidden('Not authorized if not authenticated.');
+	$user_id = $row['id'];
+	
+	$parts = explode("\r\n", $calendarData);
+	
+	$description = null;
+	$categories = null;
+	$summary = null;
+	$class = null;
+	$time_start = null;
+	$time_end = null;
+	foreach($parts as $key => $part){
+		if(empty($part)) continue;
+		
+		$value = explode(':', $part);
+		if($value[0] === 'DESCRIPTION')
+			$description = $value[1];
+		elseif($value[0] === 'CATEGORIES')
+			$categories = $value[1];
+		elseif($value[0] === 'SUMMARY')
+			$summary = $value[1];
+		elseif($value[0] === 'CLASS')
+			$class = ($value[1] == 'PUBLIC' ? 'Y' : 'N');
+		elseif(strpos($value[0], 'DTSTART') !== false){
+			if(empty($value[1])) $value[1] = $parts[$key + 1];
+			$time_start = date('Y-m-d H:i:s', strtotime($value[1]));
+		}
+		elseif(strpos($value[0], 'DTEND') !== false){
+			if(empty($value[1])) $value[1] = $parts[$key + 1];
+			$time_end = date('Y-m-d H:i:s', strtotime($value[1]));
+		}
+		
+	}
+	$created = date('Y-m-d H:i:s');
+	
+	$sql = 'INSERT INTO kronos_agenda(fk_kronos_users, created, modified, notes, type, subject, private, time_start, time_end, uri) 
+	        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+	$stmt = $this->pdo->prepare($sql);
+	$stmt->execute(array($user_id, $created, null, $description, $categories, $summary, $class, $time_start, $time_end, $objectUri ));
+	$agenda_id = $this->pdo->lastInsertId();
+	
+	return '"'.strtotime($created).'"';
 
     }
 
@@ -356,12 +342,44 @@ class KronosCalendarBackend extends Sabre_CalDAV_Backend_Abstract {
      * @return void
      */
     public function updateCalendarObject($calendarId,$objectUri,$calendarData) {
-
-        $stmt = $this->pdo->prepare('UPDATE '.$this->calendarObjectTableName.' SET calendardata = ?, lastmodified = ? WHERE calendarid = ? AND uri = ?');
-        $stmt->execute(array($calendarData,time(),$calendarId,$objectUri));
-        $stmt = $this->pdo->prepare('UPDATE '.$this->calendarTableName.' SET ctag = ctag + 1 WHERE id = ?');
-        $stmt->execute(array($calendarId));
-
+	
+	$parts = explode("\r\n", $calendarData);
+	
+	$description = null;
+	$categories = null;
+	$summary = null;
+	$class = null;
+	$time_start = null;
+	$time_end = null;
+	foreach($parts as $key => $part){
+		if(empty($part)) continue;
+		
+		$value = explode(':', $part);
+		if($value[0] === 'DESCRIPTION')
+			$description = $value[1];
+		elseif($value[0] === 'CATEGORIES')
+			$categories = $value[1];
+		elseif($value[0] === 'SUMMARY')
+			$summary = $value[1];
+		elseif($value[0] === 'CLASS')
+			$class = ($value[1] == 'PUBLIC' ? 'Y' : 'N');
+		elseif(strpos($value[0], 'DTSTART') !== false){
+			if(empty($value[1])) $value[1] = $parts[$key + 1];
+			$time_start = date('Y-m-d H:i:s', strtotime($value[1]));
+		}
+		elseif(strpos($value[0], 'DTEND') !== false){
+			if(empty($value[1])) $value[1] = $parts[$key + 1];
+			$time_end = date('Y-m-d H:i:s', strtotime($value[1]));
+		}
+		
+	}
+	$modified = date('Y-m-d H:i:s');
+	
+	$sql = 'UPDATE kronos_agenda SET modified = ?, notes = ?, type = ?, subject = ?, private = ?, time_start = ?, time_end = ? WHERE uri = ?';
+	$stmt = $this->pdo($sql);
+	$stmt->execute(array($modified, $description, $categories, $summary, $class, $time_start, $time_end, $objectUri));
+	
+	return '"'.strtotime($modified).'"';
     }
 
     /**
@@ -372,13 +390,72 @@ class KronosCalendarBackend extends Sabre_CalDAV_Backend_Abstract {
      * @return void
      */
     public function deleteCalendarObject($calendarId,$objectUri) {
-
-        $stmt = $this->pdo->prepare('DELETE FROM '.$this->calendarObjectTableName.' WHERE calendarid = ? AND uri = ?');
-        $stmt->execute(array($calendarId,$objectUri));
-        $stmt = $this->pdo->prepare('UPDATE '. $this->calendarTableName .' SET ctag = ctag + 1 WHERE id = ?');
-        $stmt->execute(array($calendarId));
+	    
+	    $sql = 'DELETE FROM kronos_agenda WHERE uri = ?';
+	    $stmt = $this->pdo->prepare($sql);
+	    $stmt->execute(array($objectUri));
+	    
+	    return true;
 
     }
+    
+	private function CompactDateTime($dt)
+	{
+		$len = strlen($dt);
+		$result = '';
+		$d = 0;
+		$T = true;
+		for ($i = 0; $i < $len; ++$i) {
+			if ($dt{$i} == '-' || $dt{$i} == ':' ) continue;
+			if ($dt{$i} == ' ') {
+				if ($T) $result.='T';
+				$T = false;
+			}
+			else $result .= $dt{$i};
+		}
+
+		return $result;
+	}
+	
+	private function QuotedPrintableEncode($str){
+		//TODO: repair line folding. it is broken to comply with synthesis client which seems to not recognize soft line breaks
+		//TODO: enforce 6.7.3 of rfc 2045
+		$nl = "\r\n";
+		$result = '';
+
+		$lineLen = 0;
+		$wasSpace = false;
+
+		$len = strlen($str);
+		for ($i = 0; $i < $len; ++$i ) {
+
+			$chr = $str{$i};
+			$ord = ord($chr);
+
+			if ($ord >= 33 && $ord < 60 && $ord != 38 || $ord > 62 && $ord <= 126) {//we specially encode < and >
+				$result .= $chr;
+				++$lineLen;
+				if ($lineLen >= 33) {
+					//$result .= '='.$nl;
+					$lineLen = 0;
+				}
+				//} else if () {
+
+			} else {
+				$result .= '=';
+				if ($ord <= 15) {
+					$result .= '0';
+				}
+				$lineLen += 3;
+				$result.= strtoupper(dechex($ord));
+				if ($lineLen >= 33) {
+					//$result .= '='.$nl;
+					$lineLen = 0;
+				}
+			}
+		}
+		return $result;
+	}
 
 
 }

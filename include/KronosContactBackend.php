@@ -129,30 +129,23 @@ class KronosContactBackend extends Sabre_CardDAV_Backend_Abstract {
      */
     public function getCards($addressbookId) {
 
-        //$stmt = $this->pdo->prepare('SELECT id, carddata, uri, lastmodified FROM ' . $this->cardsTableName . ' WHERE addressbookid = ?');
-        //$stmt->execute(array($addressbookId));
-
-        //return $stmt->fetchAll(PDO::FETCH_ASSOC);
-		$data = array(array('carddata' => 'BEGIN:VCARD
-VERSION:3.0
-N:Gump;Forrest
-FN:Forrest Gump
-ORG:Bubba Gump Shrimp Co.
-TITLE:Shrimp Man
-PHOTO;VALUE=URL;TYPE=GIF:http://www.example.com/dir_photos/my_photo.gif
-TEL;TYPE=WORK,VOICE:(111) 555-1212
-TEL;TYPE=HOME,VOICE:(404) 555-1212
-ADR;TYPE=WORK:;;100 Waters Edge;Baytown;LA;30314;United States of America
-LABEL;TYPE=WORK:100 Waters Edge\nBaytown, LA 30314\nUnited States of America
-ADR;TYPE=HOME:;;42 Plantation St.;Baytown;LA;30314;United States of America
-LABEL;TYPE=HOME:42 Plantation St.\nBaytown, LA 30314\nUnited States of America
-EMAIL;TYPE=PREF,INTERNET:forrestgump@example.com
-REV:2008-04-24T19:52:43Z
-END:VCARD',
-				'uri' => '1',
-				'lastmodified' => time()));
+        $stmt = $this->pdo->prepare('SELECT * FROM contact');
+        $stmt->execute();
 		
-		return $data;
+		$cards = array();
+		
+		//Better be careful with those tabs and whitespace
+		while($result = $stmt->fetch(PDO::FETCH_ASSOC)) {
+			$data = array();
+
+			$data['carddata'] = $this->generateVCard($result);
+			$data['uri'] = $result['id'];
+			$data['lastmodified'] = $result['modified_at'];
+			
+			$cards[] = $data;
+		}
+		
+		return $cards;
     }
 
     /**
@@ -167,34 +160,20 @@ END:VCARD',
      */
     public function getCard($addressBookId, $cardUri) {
 
-//        $stmt = $this->pdo->prepare('SELECT id, carddata, uri, lastmodified FROM ' . $this->cardsTableName . ' WHERE addressbookid = ? AND uri = ? LIMIT 1');
-//        $stmt->execute(array($addressBookId, $cardUri));
-//
-//        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
-//
-//        return (count($result)>0?$result[0]:false);
-		$data = array('carddata' => 'BEGIN:VCARD
-VERSION:3.0
-N:Gump;Forrest
-FN:Forrest Gump
-ORG:Bubba Gump Shrimp Co.
-TITLE:Shrimp Man
-PHOTO;VALUE=URL;TYPE=GIF:http://www.example.com/dir_photos/my_photo.gif
-TEL;TYPE=WORK,VOICE:(111) 555-1212
-TEL;TYPE=HOME,VOICE:(404) 555-1212
-ADR;TYPE=WORK:;;100 Waters Edge;Baytown;LA;30314;United States of America
-LABEL;TYPE=WORK:100 Waters Edge\nBaytown, LA 30314\nUnited States of America
-ADR;TYPE=HOME:;;42 Plantation St.;Baytown;LA;30314;United States of America
-LABEL;TYPE=HOME:42 Plantation St.\nBaytown, LA 30314\nUnited States of America
-EMAIL;TYPE=PREF,INTERNET:forrestgump@example.com
-REV:2008-04-24T19:52:43Z
-END:VCARD',
-				'uri' => '1',
-				'lastmodified' => time());
-		//var_dump(debug_backtrace());
-		//debug_print_backtrace();
-		return $data;
+        $stmt = $this->pdo->prepare('SELECT * FROM contact WHERE id = ? LIMIT 1');
+        $stmt->execute(array($cardUri));
+		
+		$result = $stmt->fetch(PDO::FETCH_ASSOC);
+		$data = array();
+		
+		//Better be careful with those tabs and whitespace
+		if($result) {
+			$data['carddata'] = $this->generateVCard($result);
+			$data['uri'] = $result['id'];
+			$data['lastmodified'] = $result['modified_at'];
+		}
 
+		return $data;
     }
 
     /**
@@ -224,15 +203,59 @@ END:VCARD',
      */
     public function createCard($addressBookId, $cardUri, $cardData) {
 
-        $stmt = $this->pdo->prepare('INSERT INTO ' . $this->cardsTableName . ' (carddata, uri, lastmodified, addressbookid) VALUES (?, ?, ?, ?)');
+		$lines = explode(PHP_EOL, $cardData);
+		$contact = array();
+		
+		foreach($lines as $line) {
+			$parts = explode(':', $line);
+			//Retarded iPhone adds itemX. in front of some tags (like ADR or EMAIL)
+			$parts[0] = preg_replace('/item[\d]+\./', '', $parts[0]);
+			
+			if(strpos($parts[0], ';') !== false) {
+				$subparts = explode(';', $parts[0]);
+				$parts[0] = $subparts[0];
+			}
+			
+			switch($parts[0]) {			
+				case 'N':
+					list($contact['last_name'], $contact['first_name']) = explode(';', $parts[1]);
+					break;
+				case 'ADR':
+					$subparts = explode(';', $parts[1]);
+					
+					$contact['address'] = $subparts[2];
+					$contact['postal_code'] = $subparts[5];
+					$contact['city'] = $subparts[3];
+					
+					break;
+				case 'EMAIL':
+					$contact['email'] = $parts[1];
+					break;
+			}
+		}
+		
+		if($contact['first_name'] && $contact['last_name']) {
+			$sql = 'SELECT id FROM contact WHERE first_name LIKE ? AND last_name LIKE ?';
+			$stmt = $this->pdo->prepare($sql);
+			$stmt->execute(array($contact['first_name'], $contact['last_name']));
+			
+			$results = $stmt->fetchAll();
+			
+			if($results)
+				$this->updateCard($addressBookId, $cardUri, $cardData);
+			else {
+				$sql = 'INSERT INTO contact(email, first_name, last_name, address, postal_code, city, modified_at) 
+					VALUES(?, ?, ?, ?, ?, ?, NOW())';
+				$stmt = $this->pdo->prepare($sql);
 
-        $result = $stmt->execute(array($cardData, $cardUri, time(), $addressBookId));
+				$stmt->execute(array($contact['email'], $contact['first_name'], $contact['last_name'], 
+					$contact['address'], $contact['postal_code'], $contact['city']));
 
-        $stmt2 = $this->pdo->prepare('UPDATE ' . $this->addressBooksTableName . ' SET ctag = ctag + 1 WHERE id = ?');
-        $stmt2->execute(array($addressBookId));
-
-        return '"' . md5($cardData) . '"';
-
+				return '"' . md5($cardData) . '"';
+			}		
+		}
+		else
+			return false;
     }
 
     /**
@@ -261,15 +284,62 @@ END:VCARD',
      * @return string|null
      */
     public function updateCard($addressBookId, $cardUri, $cardData) {
-
-        $stmt = $this->pdo->prepare('UPDATE ' . $this->cardsTableName . ' SET carddata = ?, lastmodified = ? WHERE uri = ? AND addressbookid =?');
-        $stmt->execute(array($cardData, time(), $cardUri, $addressBookId));
-
-        $stmt2 = $this->pdo->prepare('UPDATE ' . $this->addressBooksTableName . ' SET ctag = ctag + 1 WHERE id = ?');
-        $stmt2->execute(array($addressBookId));
-
-        return '"' . md5($cardData) . '"';
-
+		$lines = explode(PHP_EOL, $cardData);
+		$contact = array();
+		//Debug::log($cardData);
+		foreach($lines as $line) {
+			$parts = explode(':', $line);
+			//Retarded iPhone adds itemX. in front of some tags (like ADR or EMAIL)
+			$parts[0] = preg_replace('/item[\d]+\./', '', $parts[0]);
+			
+			if(strpos($parts[0], ';') !== false) {
+				$subparts = explode(';', $parts[0]);
+				$parts[0] = $subparts[0];
+			}
+			
+			switch($parts[0]) {			
+				case 'N':
+					list($contact['last_name'], $contact['first_name']) = explode(';', $parts[1]);
+					break;
+				case 'ADR':
+					$subparts = explode(';', $parts[1]);
+					
+					$contact['address'] = $subparts[2];
+					$contact['postal_code'] = $subparts[5];
+					$contact['city'] = $subparts[3];
+					
+					break;
+				case 'EMAIL':
+					$contact['email'] = $parts[1];
+					break;
+			}
+		}
+		
+//		$sql = 'UPDATE contact SET email = :email, first_name = :first_name, last_name = :last_name, address = :address, 
+//			postal_code = :postal_code, city = :city, modified_at = NOW() WHERE id = :id';
+//		$stmt = $this->pdo->prepare($sql);
+//		
+//		$stmt->bindParam(':id', $cardUri);
+//		$stmt->bindParam(':email', $contact['email']);
+//		$stmt->bindParam(':first_name', $contact['first_name']);
+//		$stmt->bindParam(':last_name', $contact['last_name']);
+//		$stmt->bindParam(':address', $contact['address']);
+//		$stmt->bindParam(':postal_code', $contact['postal_code']);
+//		$stmt->bindParam(':city', $contact['city']);
+		$sql = 'UPDATE contact SET modified_at = NOW() WHERE id = :id';
+		$stmt = $this->pdo->prepare($sql);
+//		
+		$stmt->bindParam(':id', $cardUri);
+//		$stmt->bindParam(':email', $contact['email']);
+//		$stmt->bindParam(':first_name', $contact['first_name']);
+//		$stmt->bindParam(':last_name', $contact['last_name']);
+//		$stmt->bindParam(':address', $contact['address']);
+//		$stmt->bindParam(':postal_code', $contact['postal_code']);
+//		$stmt->bindParam(':city', $contact['city']);
+		
+		$stmt->execute();
+		ééDebug::log($stmt->queryString);
+		return '"' . md5($cardData) . '"';
     }
 
     /**
@@ -281,13 +351,27 @@ END:VCARD',
      */
     public function deleteCard($addressBookId, $cardUri) {
 
-        $stmt = $this->pdo->prepare('DELETE FROM ' . $this->cardsTableName . ' WHERE addressbookid = ? AND uri = ?');
-        $stmt->execute(array($addressBookId, $cardUri));
-
-        $stmt2 = $this->pdo->prepare('UPDATE ' . $this->addressBooksTableName . ' SET ctag = ctag + 1 WHERE id = ?');
-        $stmt2->execute(array($addressBookId));
-
-        return $stmt->rowCount()===1;
+//        $stmt = $this->pdo->prepare('DELETE FROM ' . $this->cardsTableName . ' WHERE addressbookid = ? AND uri = ?');
+//        $stmt->execute(array($addressBookId, $cardUri));
+//
+//        $stmt2 = $this->pdo->prepare('UPDATE ' . $this->addressBooksTableName . ' SET ctag = ctag + 1 WHERE id = ?');
+//        $stmt2->execute(array($addressBookId));
+//
+//        return $stmt->rowCount()===1;
 
     }
+	
+	protected function generateVCard($result) {
+		return "BEGIN:VCARD
+VERSION:3.0
+N:{$result['last_name']};{$result['first_name']}
+FN:{$result['first_name']}
+ORG:Bubba Gump Shrimp Co.
+TITLE:Shrimp Man
+TEL;TYPE=HOME:(404) 555-1212
+ADR;TYPE=WORK:;;{$result['address']};{$result['city']};;{$result['postal_code']};Canada
+EMAIL;TYPE=PREF,INTERNET:{$result['email']}
+REV:2008-04-24T19:52:43Z
+END:VCARD;";
+	}
 }

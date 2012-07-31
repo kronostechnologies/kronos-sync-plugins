@@ -15,6 +15,6 @@ for($i = 0; $i < 100; $i++) {
 			$postal_codes[rand(0, 3)], $cities[rand(0, 3)], $provinces[rand(0, 3)]);
 
 	$stmt = $pdo->prepare('INSERT INTO contact(email, first_name, last_name, address, 
-		postal_code, city, province) VALUES(?, ?, ?, ?, ?, ?, ?)');
+		postal_code, city, province, modified_at) VALUES(?, ?, ?, ?, ?, ?, ?, NOW())');
 	$stmt->execute($values);
 }

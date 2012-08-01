@@ -10,5 +10,8 @@ CREATE TABLE `contact` (
   `postal_code` varchar(10) DEFAULT NULL,
   `city` varchar(100) DEFAULT NULL,
   `province` varchar(100) DEFAULT NULL,
+  `uri` varchar(600) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;
+
+--alter table contact add column uri varchar(600);

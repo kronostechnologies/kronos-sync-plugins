@@ -52,6 +52,11 @@ class KronosContactBackend extends Sabre_CardDAV_Backend_Abstract {
      */
     public function getAddressBooksForUser($principalUri) {
 		
+		$stmt = $this->pdo->prepare('SELECT MAX(modified_at) as ctag FROM contact');
+        $stmt->execute();
+		
+		$result = $stmt->fetch(PDO::FETCH_ASSOC);
+		
         $addressBooks = array();
 
 		$addressBooks[] = array(
@@ -60,7 +65,7 @@ class KronosContactBackend extends Sabre_CardDAV_Backend_Abstract {
 			'principaluri' => $principalUri,
 			'{DAV:}displayname' => 'kronos',
 			'{' . Sabre_CardDAV_Plugin::NS_CARDDAV . '}addressbook-description' => 'Kronos list of contacts',
-			'{http://calendarserver.org/ns/}getctag' => '1',
+			'{http://calendarserver.org/ns/}getctag' => $result['ctag'],
 			'{' . Sabre_CardDAV_Plugin::NS_CARDDAV . '}supported-address-data' =>
 				new Sabre_CardDAV_Property_SupportedAddressData(),
 		);
@@ -139,8 +144,9 @@ class KronosContactBackend extends Sabre_CardDAV_Backend_Abstract {
 			$data = array();
 
 			$data['carddata'] = $this->generateVCard($result);
-			$data['uri'] = $result['id'];
+			$data['uri'] = $result['uri'];
 			$data['lastmodified'] = $result['modified_at'];
+			$data['etag'] = '"' . strtotime($result['modified_at']) . '"';
 			
 			$cards[] = $data;
 		}
@@ -160,7 +166,7 @@ class KronosContactBackend extends Sabre_CardDAV_Backend_Abstract {
      */
     public function getCard($addressBookId, $cardUri) {
 
-        $stmt = $this->pdo->prepare('SELECT * FROM contact WHERE id = ? LIMIT 1');
+        $stmt = $this->pdo->prepare('SELECT * FROM contact WHERE uri = ? LIMIT 1');
         $stmt->execute(array($cardUri));
 		
 		$result = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -169,8 +175,9 @@ class KronosContactBackend extends Sabre_CardDAV_Backend_Abstract {
 		//Better be careful with those tabs and whitespace
 		if($result) {
 			$data['carddata'] = $this->generateVCard($result);
-			$data['uri'] = $result['id'];
+			$data['uri'] = $cardUri;
 			$data['lastmodified'] = $result['modified_at'];
+			$data['etag'] = '"' . strtotime($result['modified_at']) . '"';
 		}
 
 		return $data;
@@ -206,6 +213,13 @@ class KronosContactBackend extends Sabre_CardDAV_Backend_Abstract {
 		$lines = explode(PHP_EOL, $cardData);
 		$contact = array();
 		
+		$contact['last_name'] = '';
+		$contact['first_name'] = '';
+		$contact['address'] = '';
+		$contact['postal_code'] = '';
+		$contact['city'] = '';
+		$contact['email'] = '';
+					
 		foreach($lines as $line) {
 			$parts = explode(':', $line);
 			//Retarded iPhone adds itemX. in front of some tags (like ADR or EMAIL)
@@ -218,7 +232,9 @@ class KronosContactBackend extends Sabre_CardDAV_Backend_Abstract {
 			
 			switch($parts[0]) {			
 				case 'N':
-					list($contact['last_name'], $contact['first_name']) = explode(';', $parts[1]);
+					$subparts = explode(';', $parts[1]);
+					$contact['last_name'] = $subparts[0];
+					$contact['first_name'] = $subparts[1];
 					break;
 				case 'ADR':
 					$subparts = explode(';', $parts[1]);
@@ -234,6 +250,11 @@ class KronosContactBackend extends Sabre_CardDAV_Backend_Abstract {
 			}
 		}
 		
+		//Some \r are seemingly sent by the damn iPhone (and are not escaped by the PDO statement)
+		$contact = array_map(function($val) { return preg_replace('/\r|\n|\r\n|\n\r/', '', $val); }, $contact);
+		//Since some literal '\n' are included in the addresses
+		$contact = array_map(function($val) { return str_replace(array('\r\n', '\r', '\n'), ' ', $val); }, $contact);
+		
 		if($contact['first_name'] && $contact['last_name']) {
 			$sql = 'SELECT id FROM contact WHERE first_name LIKE ? AND last_name LIKE ?';
 			$stmt = $this->pdo->prepare($sql);
@@ -244,14 +265,15 @@ class KronosContactBackend extends Sabre_CardDAV_Backend_Abstract {
 			if($results)
 				$this->updateCard($addressBookId, $cardUri, $cardData);
 			else {
-				$sql = 'INSERT INTO contact(email, first_name, last_name, address, postal_code, city, modified_at) 
-					VALUES(?, ?, ?, ?, ?, ?, NOW())';
+				$modified_at = date('Y-m-d H:i:s');
+				$sql = 'INSERT INTO contact(email, first_name, last_name, address, postal_code, city, modified_at, uri) 
+					VALUES(?, ?, ?, ?, ?, ?, ?, ?)';
 				$stmt = $this->pdo->prepare($sql);
 
 				$stmt->execute(array($contact['email'], $contact['first_name'], $contact['last_name'], 
-					$contact['address'], $contact['postal_code'], $contact['city']));
+					$contact['address'], $contact['postal_code'], $contact['city'], $modified_at, $cardUri));
 
-				return '"' . md5($cardData) . '"';
+				return '"' . strtotime($modified_at) . '"';
 			}		
 		}
 		else
@@ -286,7 +308,14 @@ class KronosContactBackend extends Sabre_CardDAV_Backend_Abstract {
     public function updateCard($addressBookId, $cardUri, $cardData) {
 		$lines = explode(PHP_EOL, $cardData);
 		$contact = array();
-		//Debug::log($cardData);
+		
+		$contact['last_name'] = '';
+		$contact['first_name'] = '';
+		$contact['address'] = '';
+		$contact['postal_code'] = '';
+		$contact['city'] = '';
+		$contact['email'] = '';
+		
 		foreach($lines as $line) {
 			$parts = explode(':', $line);
 			//Retarded iPhone adds itemX. in front of some tags (like ADR or EMAIL)
@@ -314,32 +343,28 @@ class KronosContactBackend extends Sabre_CardDAV_Backend_Abstract {
 					break;
 			}
 		}
+		//Some \r are seemingly sent by the damn iPhone (and are not escaped by the PDO statement)
+		$contact = array_map(function($val) { return preg_replace('/\r|\n|\r\n|\n\r/', '', $val); }, $contact);
+		//Since some literal '\n' are included in the addresses
+		$contact = array_map(function($val) { return str_replace(array('\r\n', '\r', '\n'), ' ', $val); }, $contact);
 		
-//		$sql = 'UPDATE contact SET email = :email, first_name = :first_name, last_name = :last_name, address = :address, 
-//			postal_code = :postal_code, city = :city, modified_at = NOW() WHERE id = :id';
-//		$stmt = $this->pdo->prepare($sql);
-//		
-//		$stmt->bindParam(':id', $cardUri);
-//		$stmt->bindParam(':email', $contact['email']);
-//		$stmt->bindParam(':first_name', $contact['first_name']);
-//		$stmt->bindParam(':last_name', $contact['last_name']);
-//		$stmt->bindParam(':address', $contact['address']);
-//		$stmt->bindParam(':postal_code', $contact['postal_code']);
-//		$stmt->bindParam(':city', $contact['city']);
-		$sql = 'UPDATE contact SET modified_at = NOW() WHERE id = :id';
+		$sql = 'UPDATE contact SET email = :email, first_name = :first_name, last_name = :last_name, address = :address, 
+			postal_code = :postal_code, city = :city, modified_at = :modified_at WHERE uri = :uri';
 		$stmt = $this->pdo->prepare($sql);
-//		
-		$stmt->bindParam(':id', $cardUri);
-//		$stmt->bindParam(':email', $contact['email']);
-//		$stmt->bindParam(':first_name', $contact['first_name']);
-//		$stmt->bindParam(':last_name', $contact['last_name']);
-//		$stmt->bindParam(':address', $contact['address']);
-//		$stmt->bindParam(':postal_code', $contact['postal_code']);
-//		$stmt->bindParam(':city', $contact['city']);
+		$modified_at = date('Y-m-d H:i:s');
+		
+		$stmt->bindParam(':uri', $cardUri);
+		$stmt->bindParam(':modified_at', $modified_at);
+		$stmt->bindParam(':email', $contact['email']);
+		$stmt->bindParam(':first_name', $contact['first_name']);
+		$stmt->bindParam(':last_name', $contact['last_name']);
+		$stmt->bindParam(':address', $contact['address']);
+		$stmt->bindParam(':postal_code', $contact['postal_code']);
+		$stmt->bindParam(':city', $contact['city']);
 		
 		$stmt->execute();
-		ééDebug::log($stmt->queryString);
-		return '"' . md5($cardData) . '"';
+		
+		return '"' . strtotime($modified_at) . '"';
     }
 
     /**
@@ -358,7 +383,12 @@ class KronosContactBackend extends Sabre_CardDAV_Backend_Abstract {
 //        $stmt2->execute(array($addressBookId));
 //
 //        return $stmt->rowCount()===1;
-
+		
+		$sql = 'DELETE FROM contact WHERE uri = ?';
+	    $stmt = $this->pdo->prepare($sql);
+	    $stmt->execute(array($cardUri));
+	    
+	    return true;
     }
 	
 	protected function generateVCard($result) {

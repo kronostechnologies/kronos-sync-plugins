@@ -1,5 +1,5 @@
 <?php
-require_once('/srv/projects/kronos-sync-plugins/config/config.php');
+require_once('/srv/projects/kronos-sync-plugins/sabre/config/config.php');
 
 $emails = array('test@kronos-web.com', 'test2@kronos-web.com', 'test3@kronos-web.com', 'test4@kronos-web.com');
 $first_names = array('Gertrude', 'Gontrande', 'Zephyrin', 'Luc');

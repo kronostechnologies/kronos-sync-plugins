@@ -11,7 +11,6 @@ CREATE TABLE `contact` (
   `city` varchar(100) DEFAULT NULL,
   `province` varchar(100) DEFAULT NULL,
   `uri` varchar(600) DEFAULT NULL,
+  `modified_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;
-
---alter table contact add column uri varchar(600);

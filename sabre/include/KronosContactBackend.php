@@ -179,7 +179,7 @@ class KronosContactBackend extends Sabre_CardDAV_Backend_Abstract {
 			$data['lastmodified'] = $result['modified_at'];
 			$data['etag'] = '"' . strtotime($result['modified_at']) . '"';
 		}
-
+		Debug::log(print_r($data, true));
 		return $data;
     }
 
@@ -402,6 +402,6 @@ TEL;TYPE=HOME:(404) 555-1212
 ADR;TYPE=WORK:;;{$result['address']};{$result['city']};;{$result['postal_code']};Canada
 EMAIL;TYPE=PREF,INTERNET:{$result['email']}
 REV:2008-04-24T19:52:43Z
-END:VCARD;";
+END:VCARD";
 	}
 }

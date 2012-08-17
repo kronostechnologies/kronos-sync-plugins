@@ -911,7 +911,7 @@ class Sync extends RequestProcessor {
 
         if ($sc->GetParameter($spa, "state") == null) {
             ZLog::Write(LOGLEVEL_DEBUG, sprintf("Sync->loadStates(): loading states for folder '%s'",$spa->GetFolderId()));
-
+			
             try {
                 $sc->AddParameter($spa, "state", self::$deviceManager->GetStateManager()->GetSyncState($spa->GetSyncKey()));
 

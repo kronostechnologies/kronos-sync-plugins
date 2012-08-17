@@ -1,5 +1,5 @@
 <?php
-require_once('../config/config.php');
+require_once('/srv/projects/kronos-sync-plugins/sabre/config/config.php');
 $kronos_users_id = array();
 
 $pdo = new PDO('mysql:host='.MYSQL_DBHOST.';dbname='.MYSQL_DBNAME, MYSQL_DBUSER, MYSQL_DBPASSWORD);

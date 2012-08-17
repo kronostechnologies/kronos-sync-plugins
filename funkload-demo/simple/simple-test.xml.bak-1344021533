@@ -1,0 +1,2 @@
+<response cycle="001" cvus="000" thread="001" suite="Dav" name="test_simple" step="001" number="001" type="options" result="Successful" url="/sabredav/server.php/" code="200" description="Get entry point of the DAV server" time="1344021380.71" duration="0.0157780647278" />
+<testResult cycle="001" cvus="000" thread="001" suite="Dav" name="test_simple"  time="1344021380.71" result="Successful" steps="1" duration="0.0169389247894" connection_duration="0.0157780647278" requests="1" pages="1" xmlrpc="0" redirects="0" images="0" links="0" />

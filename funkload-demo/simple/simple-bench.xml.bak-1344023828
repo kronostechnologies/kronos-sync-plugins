@@ -1,0 +1,22 @@
+<funkload version="1.16.1" time="2012-08-03T15:56:54.195217">
+<config key="sleep_time_min" value="0.0" />
+<config key="node" value="belial" />
+<config key="startup_delay" value="0.01" />
+<config key="cycles" value="[25, 50, 100]" />
+<config key="cycle_time" value="1.0" />
+<config key="description" value="Access a DAV server and query the addressbook" />
+<config key="configuration_file" value="/srv/projects/kronos-sync-plugins/funkload-demo/simple/Dav.conf" />
+<config key="class_title" value="Simple FunkLoad tests" />
+<config key="server_url" value="http://10.0.10.116/sabredav/server.php/" />
+<config key="module" value="test_Dav" />
+<config key="id" value="test_simple" />
+<config key="class_description" value="Simply testing a default static page" />
+<config key="sleep_time" value="0.01" />
+<config key="sleep_time_max" value="0.5" />
+<config key="duration" value="10" />
+<config key="method" value="test_simple" />
+<config key="log_xml" value="/srv/projects/kronos-sync-plugins/funkload-demo/simple/simple-bench.xml" />
+<config key="class" value="Dav" />
+<config key="localhost" value="The benching and benched machine" />
+<config key="python_version" value="2.7.3" />
+<response cycle="000" cvus="025" thread="017" suite="Dav" name="test_simple" step="002" number="001" type="PROPFIND" result="Successful" url="/sabredav/server.php/addressbooks/schenard%40kronos-web.com/kronos" code="207" description="Querying the addressbook" time="1344023814.44" duration="5.15003204346" />

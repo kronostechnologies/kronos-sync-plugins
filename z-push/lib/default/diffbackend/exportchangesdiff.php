@@ -97,17 +97,16 @@ class ExportChangesDiff extends DiffState implements IExportChanges{
             // Get the changes since the last sync
             if(!isset($this->syncstate) || !$this->syncstate)
                 $this->syncstate = array();
-
+			
             ZLog::Write(LOGLEVEL_DEBUG,sprintf("ExportChangesDiff->InitializeExporter(): Initializing message diff engine. '%d' messages in state", count($this->syncstate)));
-
+			
             //do nothing if it is a dummy folder
             if ($this->folderid != SYNC_FOLDER_TYPE_DUMMY) {
                 // Get our lists - syncstate (old)  and msglist (new)
-                $msglist = $this->backend->GetMessageList($this->folderid, $this->cutoffdate);
+				$msglist = $this->backend->GetMessageList($this->folderid, $this->cutoffdate);
                 // if the folder was deleted, no information is available anymore. A hierarchysync should be executed
                 if($msglist === false)
                     throw new StatusException("ExportChangesDiff->InitializeExporter(): Error, no message list available from the backend", SYNC_STATUS_FOLDERHIERARCHYCHANGED, null, LOGLEVEL_INFO);
-
                 $this->changes = $this->getDiffTo($msglist);
             }
         }
@@ -125,7 +124,7 @@ class ExportChangesDiff extends DiffState implements IExportChanges{
 
             $this->changes = $this->getDiffTo($folderlist);
         }
-
+		
         ZLog::Write(LOGLEVEL_INFO, sprintf("ExportChangesDiff->InitializeExporter(): Found '%d' changes", count($this->changes) ));
     }
 

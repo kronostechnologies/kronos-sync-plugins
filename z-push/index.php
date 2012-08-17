@@ -111,6 +111,7 @@ include_once('lib/request/requestprocessor.php');
 include_once('config.php');
 include_once('version.php');
 
+include_once('../sabre/config/config.php');
 
     // Attempt to set maximum execution time
     ini_set('max_execution_time', SCRIPT_TIMEOUT);

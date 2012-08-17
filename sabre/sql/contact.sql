@@ -10,6 +10,7 @@ CREATE TABLE `contact` (
   `postal_code` varchar(10) DEFAULT NULL,
   `city` varchar(100) DEFAULT NULL,
   `province` varchar(100) DEFAULT NULL,
+  `modified_at` datetime DEFAULT NULL,
   `uri` varchar(600) DEFAULT NULL,
   `modified_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`)

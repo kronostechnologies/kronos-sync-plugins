@@ -47,7 +47,8 @@
 
 class FileStateMachine implements IStateMachine {
     private $userfilename;
-
+	private $_conn = null;
+	
     /**
      * Constructor
      *
@@ -71,6 +72,18 @@ class FileStateMachine implements IStateMachine {
 
         if (!touch($this->userfilename))
             throw new FatalMisconfigurationException("Not possible to write to the configured state directory.");
+		
+		$this->_conn = mysql_connect(MYSQL_DBHOST, MYSQL_DBUSER, MYSQL_DBPASSWORD);
+
+        if (!$this->_conn) {
+            die('Not connected : ' . mysql_error());
+        }
+
+        $res = mysql_select_db(MYSQL_DBNAME, $this->_conn);
+
+        if (!$res) {
+            die ('Can\'t use testdav : ' . mysql_error());
+        }
     }
 
     /**
@@ -114,20 +127,41 @@ class FileStateMachine implements IStateMachine {
      * @throws StateNotFoundException, StateInvalidException
      */
     public function GetState($devid, $type, $key = false, $counter = false, $cleanstates = true) {
-        if ($counter && $cleanstates)
-            $this->CleanStates($devid, $type, $key, $counter);
+//		if(empty($type)) {
+//			$sql = 'SELECT * FROM cache_contact';
+//			$result = mysql_query($sql, $this->_conn);
+//			$syncstate = array();
+//			
+//			while($cache = mysql_fetch_assoc($result)) {
+//				$element = array();
+//				
+//				$element['id'] = $cache['contact_id'];
+//				$element['modified_at'] = $cache['modified_at'];
+//				$element['synced_at'] = $cache['synced_at'];
+//				$element['action'] = $cache['action'];
+//				
+//				$syncstate[] = $element;
+//			}
+//			
+//			return $syncstate;
+//		}
+//		else {
+			if ($counter && $cleanstates)
+				$this->CleanStates($devid, $type, $key, $counter);
 
-        // Read current sync state
-        $filename = $this->getFullFilePath($devid, $type, $key, $counter);
+			// Read current sync state
+			$filename = $this->getFullFilePath($devid, $type, $key, $counter);
 
-        ZLog::Write(LOGLEVEL_DEBUG, sprintf("FileStateMachine->GetState() on file: '%s'", $filename));
+			ZLog::Write(LOGLEVEL_DEBUG, sprintf("FileStateMachine->GetState() on file: '%s'", $filename));
 
-        if(file_exists($filename)) {
-            return unserialize(file_get_contents($filename));
-        }
-        // throw an exception on all other states, but not FAILSAVE as it's most of the times not there by default
-        else if ($type !== IStateMachine::FAILSAVE)
-            throw new StateNotFoundException(sprintf("FileStateMachine->GetState(): Could not locate state '%s'",$filename));
+			if(file_exists($filename)) {
+				return unserialize(file_get_contents($filename));
+
+			}
+			// throw an exception on all other states, but not FAILSAVE as it's most of the times not there by default
+			else if ($type !== IStateMachine::FAILSAVE)
+				throw new StateNotFoundException(sprintf("FileStateMachine->GetState(): Could not locate state '%s'",$filename));
+		//}
     }
 
     /**
@@ -144,14 +178,42 @@ class FileStateMachine implements IStateMachine {
      * @throws StateInvalidException
      */
     public function SetState($state, $devid, $type, $key = false, $counter = false) {
-        $state = serialize($state);
+		//if the $type is empty this means we aren't dealing with a folder
+//		if(empty($type)) {
+//			$now = date('Y-m-d H:i:s');
+//			
+//			foreach($state as $element) {
+//				if(is_numeric($element['id'])) {
+//					$sql = 'SELECT * FROM cache_contact WHERE contact_id = ' . $element['id'];
+//					$result = mysql_query($sql, $this->_conn);
+//
+//					if($contact = mysql_fetch_assoc($result)) {
+//						//TODO only update if needed
+//						$sql = "UPDATE cache_contact SET synced_at = '" . $now . "',
+//							modified_at = '" . $now . "'
+//							WHERE contact_id = " . $element['id'];
+//						
+//						$result = mysql_query($sql, $this->_conn);
+//					}
+//					else {
+//						$sql = "INSERT INTO cache_contact(contact_id, action, modified_at, synced_at)
+//							VALUES({$element['id']}, '', '" . $now . "', '" . $now . "')";
+//						
+//						$result = mysql_query($sql, $this->_conn);
+//					}
+//				}
+//			}	
+//		}
+//		else {
+		$state = serialize($state);
 
-        $filename = $this->getFullFilePath($devid, $type, $key, $counter);
-        if (($bytes = file_put_contents($filename, $state)) === false)
-            throw new FatalMisconfigurationException(sprintf("FileStateMachine->SetState(): Could not write state '%s'",$filename));
+		$filename = $this->getFullFilePath($devid, $type, $key, $counter);
+		if (($bytes = file_put_contents($filename, $state)) === false)
+			throw new FatalMisconfigurationException(sprintf("FileStateMachine->SetState(): Could not write state '%s'",$filename));
 
-        ZLog::Write(LOGLEVEL_DEBUG, sprintf("FileStateMachine->SetState() written %d bytes on file: '%s'", $bytes, $filename));
-        return $bytes;
+		ZLog::Write(LOGLEVEL_DEBUG, sprintf("FileStateMachine->SetState() written %d bytes on file: '%s'", $bytes, $filename));
+		return $bytes;
+		//}
     }
 
     /**

@@ -119,7 +119,46 @@ class DiffState implements IChanges {
      */
     protected function getDiffTo($new) {
         $changes = array();
-
+//		//is it the first sync
+//		if(!empty($new)) {
+//			foreach($new as $element) {
+//				$change = array();
+//
+//				$change["id"] = $element["id"];
+//				$change["type"] = "change"; 
+//				$change["flags"] = SYNC_NEWMESSAGE;
+//
+//				$changes[] = $change;
+//			}
+//
+//			return $changes;
+//		}
+//		else { //or not
+//			foreach($this->syncstate as $cache) {
+//				if(strtotime($cache['modified_at']) > strtotime($cache['synced_at'])) {
+//					$change = array();
+//
+//					$change["id"] = $cache["contact_id"];
+//
+//					switch($cache['action']) {
+//						case 'insert': 
+//							$change["type"] = "change"; 
+//							$change["flags"] = SYNC_NEWMESSAGE;
+//							break;
+//						case 'delete': 
+//							$change["type"] = "delete"; 
+//							break;
+//						default : 
+//							$change["type"] = "change";
+//					}
+//					ZLog::Write(LOGLEVEL_INFO, 'getDiffTo, changed : ' . $change['id'] . ' type : ' . $change['type']);
+//					$changes[] = $change;
+//				}
+//			}
+//
+//			return $changes;
+//		}
+		
         // Sort both arrays in the same way by ID
         usort($this->syncstate, array("DiffState", "RowCmp"));
         usort($new, array("DiffState", "RowCmp"));

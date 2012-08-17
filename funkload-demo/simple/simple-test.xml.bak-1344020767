@@ -1,0 +1,21 @@
+<response cycle="001" cvus="000" thread="001" suite="Dav" name="test_simple" step="001" number="001" type="get" result="Failure" url="/sabredav/server.php/" code="401" description="Get entry point of the DAV server" time="1344020711.91" duration="5.01184082031">
+  <headers>
+    <header name="content-length" value="291" />
+    <header name="x-powered-by" value="PHP/5.3.10-1ubuntu3.1" />
+    <header name="server" value="Apache/2.2.22 (Ubuntu)" />
+    <header name="date" value="Fri, 03 Aug 2012 19:05:11 GMT" />
+    <header name="content-type" value="application/xml; charset=utf-8" />
+    <header name="www-authenticate" value='Basic realm="SabreDAV"' />
+  </headers>
+  <body><![CDATA[
+<?xml version="1.0" encoding="utf-8"?>
+<d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+  <s:exception>Sabre_DAV_Exception_NotAuthenticated</s:exception>
+  <s:message>No basic authentication headers were found</s:message>
+  <s:sabredav-version>1.6.3</s:sabredav-version>
+</d:error>
+
+]]>
+  </body>
+</response>
+<testResult cycle="001" cvus="000" thread="001" suite="Dav" name="test_simple"  time="1344020711.91" result="Failure" steps="1" duration="5.06225180626" connection_duration="5.01184082031" requests="1" pages="0" xmlrpc="0" redirects="0" images="0" links="0" traceback="Traceback (most recent call last):&#10;   File &quot;/usr/local/lib/python2.7/dist-packages/funkload-1.16.1-py2.7.egg/funkload/FunkLoadTestCase.py&quot;, line 946, in __call__&#10;    testMethod()&#10;   File &quot;/srv/projects/kronos-sync-plugins/funkload-demo/simple/test_Dav.py&quot;, line 21, in test_simple&#10;    self.get(server_url, description='Get entry point of the DAV server')&#10;   File &quot;/usr/local/lib/python2.7/dist-packages/funkload-1.16.1-py2.7.egg/funkload/FunkLoadTestCase.py&quot;, line 391, in get&#10;    method=&quot;get&quot;, load_auto_links=load_auto_links)&#10;   File &quot;/usr/local/lib/python2.7/dist-packages/funkload-1.16.1-py2.7.egg/funkload/FunkLoadTestCase.py&quot;, line 299, in _browse&#10;    response = self._connect(url, params, ok_codes, method, description)&#10;   File &quot;/usr/local/lib/python2.7/dist-packages/funkload-1.16.1-py2.7.egg/funkload/FunkLoadTestCase.py&quot;, line 216, in _connect&#10;    raise self.failureException, str(value.response)&#10; AssertionError: /sabredav/server.php/&#10;HTTP Response 401: Unauthorized&#10;" />

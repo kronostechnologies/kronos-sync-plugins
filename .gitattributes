@@ -29,3 +29,4 @@
 *.widget binary
 *.ai binary
 *.docx binary
+*.pyc binary
